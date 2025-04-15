@@ -87,18 +87,18 @@ func (r *DockerCredentialSyncReconciler) Reconcile(
 	var synced []string
 	var failed []string
 
-	// Get Docker Cred Secrete from source namespace
-	targetSecret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: dockerCredCR.Spec.SourceNamespace,
-			Name:      dockerCredCR.Spec.SourceSecretName,
-		},
-	}
-
 	for _, ns := range namespaceList.Items {
 		// Check if it is a targeted namespace
 		if !strings.HasPrefix(ns.Name, dockerCredCR.Spec.TargetNamespacePrefix) {
 			continue
+		}
+
+		// Get Docker Cred Secrete from source namespace
+		targetSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: ns.Name,
+				Name:      dockerCredCR.Spec.SourceSecretName,
+			},
 		}
 
 		// Sync Secret
