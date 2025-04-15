@@ -22,10 +22,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	daxvov1 "dax.vo/docker-credentail-sync/api/v1"
 )
@@ -38,7 +37,7 @@ var _ = Describe("DockerCredentialSync Controller", func() {
 
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Namespace: "default",
 		}
 		dockercredentialsync := &daxvov1.DockerCredentialSync{}
 
@@ -51,14 +50,18 @@ var _ = Describe("DockerCredentialSync Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: daxvov1.DockerCredentialSyncSpec{
+						SourceNamespace:        "cred-store",
+						SourceSecretName:       "dockerhub-cred",
+						TargetNamespacePrefix:  "dev-",
+						RefreshIntervalSeconds: 3,
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
 			resource := &daxvov1.DockerCredentialSync{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
@@ -66,6 +69,7 @@ var _ = Describe("DockerCredentialSync Controller", func() {
 			By("Cleanup the specific resource instance DockerCredentialSync")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
+
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
 			controllerReconciler := &DockerCredentialSyncReconciler{
@@ -77,8 +81,51 @@ var _ = Describe("DockerCredentialSync Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+
+			By("Verifying that the status was updated")
+			err = k8sClient.Get(ctx, typeNamespacedName, dockercredentialsync)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(dockercredentialsync.Status.Conditions.Type).To(Equal("Ready"))
+			Expect(dockercredentialsync.Status.Conditions.Status).To(Equal(metav1.ConditionTrue))
+		})
+
+		It("should handle errors when source secret is not found", func() {
+			By("Simulating source secret not found")
+			controllerReconciler := &DockerCredentialSyncReconciler{
+				Client: k8sClient,
+				Scheme: k8sClient.Scheme(),
+			}
+
+			// Create a DockerCredentialSync CR with an invalid source secret
+			resource := &daxvov1.DockerCredentialSync{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-error-resource",
+					Namespace: "default",
+				},
+				Spec: daxvov1.DockerCredentialSyncSpec{
+					SourceNamespace:        "invalid-namespace",
+					SourceSecretName:       "invalid-secret",
+					TargetNamespacePrefix:  "dev-",
+					RefreshIntervalSeconds: 3,
+				},
+			}
+
+			// Create the invalid resource
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+
+			// Run the reconcile logic
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      "test-error-resource",
+					Namespace: "default",
+				},
+			})
+
+			// Assert the error case (source secret not found)
+			Expect(err).To(HaveOccurred())
+
+			// Clean up the resource after testing
+			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 	})
 })
