@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - dax.vo
+  resources:
+  - dockercredentialsyncs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - dax.vo
+  resources:
+  - dockercredentialsyncs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - dax.vo
+  resources:
+  - dockercredentialsyncs/status
+  verbs:
+  - get
+  - patch
+  - update
